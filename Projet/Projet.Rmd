@@ -1,0 +1,374 @@
+---
+title: "Déterminants de l'accès au crédit au Pays-Bas"
+author: "Charbel AHOUANDOKOUN, Nazifou AFOLABI"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+header-includes:
+  - \usepackage{fancyhdr}
+  - \usepackage{graphicx}
+  - \pagestyle{fancy}
+  - \fancyhead{}
+  - \fancyfoot[C]{\thepage}
+  - \fancyfoot[R]{\textbf{\large Mécen 1}}
+  - \fancyfoot[L]{\textbf{\large Makerting et Analyse}}
+geometry:
+  margin=1.5cm
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE,warning = FALSE)
+```
+
+```{r, packages}
+library(haven)
+library(ggplot2)
+library(FactoMineR)
+library(forcats)
+library(kableExtra)
+library(corrplot)
+library(stringr)
+library(dplyr) 
+library(factoextra) 
+library(patchwork)
+library(ggsci)
+library(scales)
+library(explor)
+library(stargazer)
+library(lmtest)
+library(caret)
+library(sandwich)
+library(mlogit)
+library(pROC)
+library(gtsummary)
+```
+
+```{r}
+setwd("~/1 MECEN/analyse et marketing R/PROJET ANALYSE ET MARKETING")
+Base1<- read_dta("findex_Netherlands.dta")
+```
+
+
+
+```{r, importation base de données et traitement}
+setwd("~/1 MECEN/analyse et marketing R/PROJET ANALYSE ET MARKETING")
+Base<- read_dta("findex_Netherlands.dta")
+
+Base$economy<-factor(Base$economy)
+
+Base$female<-factor(Base$female)
+Base$female<-fct_recode(Base$female, "male"="1", "female"="2")
+
+Base$educ[Base$educ==4|Base$educ==5]<-NA
+Base$educ<-factor(Base$educ)
+Base$educ<-fct_recode(Base$educ, "Primary"="1", "Secondary"="2", "Tertiary"="3")
+
+Base$age<-as.numeric(Base$age)
+
+Base$inc_q<-factor(Base$inc_q)
+Base$inc_q<-fct_recode(Base$inc_q, "first_q"="1", "second_q"="2","middle_q"="3","fourth_q"="4","fifth_q"="5")
+
+
+Base$emp_in<-factor(Base$emp_in)
+Base$emp_in<-fct_recode(Base$emp_in, "out_of_wf"="0", "wf"="1")
+
+Base$fin2[Base$fin2==3|Base$fin2==4]<-NA
+Base$fin2<-factor(Base$fin2)
+Base$fin2<-fct_recode(Base$fin2, "yes"="1", "no"="2")
+
+Base$fin7[Base$fin7==3|Base$fin7==4]<-NA
+Base$fin7<-factor(Base$fin7)
+Base$fin7<-fct_recode(Base$fin7, "yes"="1", "no"="2")
+
+Base$fin19[Base$fin19==3|Base$fin19==4]<-NA
+Base$fin19<-factor(Base$fin19)
+Base$fin19<-fct_recode(Base$fin19, "yes"="1", "no"="2")
+
+Base$fin33[Base$fin33==3|Base$fin33==4]<-NA
+Base$fin33<-factor(Base$fin33)
+Base$fin33<-fct_recode(Base$fin33, "yes"="1", "no"="2")
+
+Base$fin46[Base$fin46==3|Base$fin46==4]<-NA
+Base$fin46<-factor(Base$fin46)
+Base$fin46<-fct_recode(Base$fin46, "yes"="1", "no"="2")
+
+Base$saved[Base$saved==3]<-NA
+Base$saved<-factor(Base$saved)
+Base$saved<-fct_recode(Base$saved, "yes"="1", "no"="0")
+
+Base$borrowed[Base$borrowed==3]<-NA
+Base$borrowed<-factor(Base$borrowed)
+Base$borrowed<-fct_recode(Base$borrowed, "yes"="1", "no"="0")
+```
+
+
+```{r}
+
+Tableau <- function(data, Bof) {
+  table <- kable(data,caption=Bof)
+  table %>%
+    kable_styling(latex_options = c("striped", "hold_position"),position="center") %>%
+    add_header_above(c(" " = 1, "Statistiques descriptives" = ncol(data)))
+  return(table)
+}
+
+
+cv <- function(x, y) {
+  t <- table(x, y)
+  if(any(t==0)){
+    t [t==0]<-0.0001 }
+  chi <- suppressWarnings(chisq.test(t))$statistic
+  cramer <- sqrt(chi / (length(x) * (min(dim(t)) - 1)))
+  cramer
+}
+
+cramer.matrix <- function(y, fill = TRUE){
+  col.y <- ncol(y)
+  V <- matrix(ncol = col.y, nrow = col.y)
+  for(i in 1:(col.y - 1)){
+    for(j in (i + 1):col.y){
+      V[i,j] <- cv(pull(y,i), pull(y,j))
+    }
+  }
+  diag(V) <- 1 
+  if (fill) {
+    for (i in 1:ncol(V)) {
+      V[, i] <- V[i, ]
+    }
+  }
+  colnames(V) <- names(y)
+  rownames(V) <- names(y)
+  V
+}
+
+Table_lien <- function(axe=1){
+Tb <- as.matrix(round(sort(res.MCA$var$eta2[,axe],decreasing=T),4))
+colnames(Tb) <- "Eta2(lien avec l'axe)"
+Tb %>% as.matrix() %>% kable() %>% kable_styling(position="center",full_width = F)
+}
+```
+
+
+# 1- Analyse descriptive
+
+## A- Variables quantitatives
+
+```{r}
+Ta<-summary(Base$age) |> as.array() |> round(2)
+row.names(Ta)<-c("Min", "1er Quartile", "Médiane", "Moyenne", "3è Quartile", "Max")
+Ta |> kable(caption="Statistiques descriptive variable Age",col.names = c("Statistique","Valeur")) |> kable_styling(latex_options = c("striped", "hold_position"),position="center")
+```
+
+
+### Commentaire :
+  La moitié des individus de notre étude ont plus de 56 ans, on a donc un échantillon plutôt vieux (75% au ont plus de 38 ans) ce qui est normal pour ce genre d'étude. L'âge minimum est de 15 ans, le maximum est de 92 années. On décompte quand même `r sum(Base$age < 18)` mineurs dans notre base.
+
+## B- Variables qualitatives
+
+```{r,out.height= 2 }
+Base[,c(2,4,5,6)] |> tbl_summary() 
+```
+
+### Commentaire
+
+Notre base contient $53$% d'individus de sexe masculin. Le niveau d'éducation le plus représenté est le secondaire ($58$% des individus) et le moins représenté est le primaire ($4,3$%). $25$% des personnes enquêtées font partie des $20$% ayant le revenu le plus élevé dans le pays.
+
+## C- Matrice de Crammer
+
+```{r, fig.height=3}
+corrplot(cramer.matrix(Base[,-c(1,3)]), type = "upper", diag = FALSE, tl.col = "black")
+Matc<-round(cramer.matrix(Base[,-c(1,3)]),2)
+```
+
+### Commentaire
+ La matrice de Cramer présente les liens entre les variables qualitatives de notre base. On y voit notamment une très forte 'corrélation' entre $fin7$ et $borrowed$. Aussi, les variables les moins liées à $fin19$, notre variable d'intérêt sont : $fin2, fin33$ et $fin46$.
+
+
+
+## D- Analyse des Correspondances Multiples
+
+```{r}
+res.MCA<-MCA(Base[,-1],quanti.sup=c(2),graph=FALSE)
+res <- prepare_results(res.MCA)
+```
+
+### a- Choix du nombre d'axes factorielles
+
+```{r, fig.height=3}
+fviz_screeplot(res.MCA, choice = "variance", ncp = 15,
+               main ="Décomposition de l'inertie totale - 15 premiers axes",
+               addlabels = TRUE,  ylab=" ", barcol="white")
+```
+
+#### Commentaire
+ On retient les 2 premiers axes factoriels car il n'y a plus de variation significative de la part d'inertie portée par les axes après le 2è (règle du coude). Ce plan résume $25.1$% de la variabilité totale de nos données
+
+### b- Graphiques
+
+```{r}
+(plot.MCA(res.MCA, choix='var',title="Graphe des variables",col.var=c(1,2,3,4,5,6,7,8,9,10,11),label = c('var'))+plot.MCA(res.MCA,invisible= 'ind',col.var=c(1,1,2,2,2,2,3,3,3,3,3,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9,9,10,10,11,11),title="Graphe des modalités",label =c('var')))
+
+```
+
+```{r, fig.height=3}
+plot.MCA(res.MCA, choix='quanti.sup',title="Variables quantitatives suplémentaires")
+```
+
+\newpage
+
+#### Commentaire
+
+ - Le premier graphique présente les variables dans le plan formé par les deux premiers axes factoriels. On peut relever notamment que les variables $fin33$ et $fin46$ sont très proches. Les variables $borrowed, educ, fin7, inc_ q$ sont également très proches; de même pour $fin19$ et $saved$. Plus une variable est proche de l'origine, moins il est lié aux axes du plan.
+ - Le deuxième graphique fait la même analyse mais cette fois-ci par rapport aux modalités des variables.
+ - Le troisième représente la variable quantitative $age$ dans la plan. La longeur de la flèche et son sens (pointe dans la même direction que nos deux axes factoriels) montre que cette variable en plus d'être fortement correlée aux axes contribue fortement à la variation des ces derniers.  
+ 
+ 
+
+
+
+
+
+
+```{r}
+#Table_lien()
+#Table_lien(2)
+Tb <- as.matrix(round(res.MCA$var$eta2[,c(1,2)],4))
+colnames(Tb) <- c("Lien avec l'axe 1","Lien avec l'axe 2")
+```
+
+\newpage
+### Lien avec les axes et choix des variables
+
+```{r}
+Tb %>% as.matrix() %>% kable(caption="Eta 2- Lien entre les axes et les variables") %>% kable_styling(position="center",full_width = F)
+```
+
+
+
+
+ Le tableau ci-dessus présente le lien entre nos variables et les adeux axes factoriels retenus. Nous avons choisi comme mesure le Eta2, et retiendrons comme critère de sélection un Eta2 minimum de $0.1$ sur chacun des deux axes. Ainsi, les variables qui satisfont cette condition sont: $fin7,educ,borrowed,fin33,fin46, emp_ in$. Cependant, les variables $fin33$ et $fin46$ ont des corrélation(mesurée par la matrice de Cramer) quasi nuls, respectivement `r Matc[7,8]` et `r Matc[7,9]` avec la variable explicative $fin19$, on ne les utilisera pas.
+\newpage
+
+# 2- Modèle à probabilité linéaire:
+
+```{r}
+Base1<- read_dta("findex_Netherlands.dta")
+Base1<-Base1[,c(3,4,6,8,9,13)]
+Base1$educ[Base1$educ==4|Base1$educ==5]<-NA
+Base1$fin7[Base1$fin7==3|Base1$fin7==4]<-NA
+Base1$fin7[Base1$fin7==2]<-0
+Base1$fin19[Base1$fin19==3|Base1$fin19==4]<-NA
+Base1$fin19[Base1$fin19==2]<-0
+Base1$borrowed[Base1$borrowed==3]<-NA
+Base1$borrowed[Base1$borrowed==2]<-0
+Base1 <- na.omit(Base1)
+```
+
+
+```{r,results='asis'}
+p_lin<-lm(fin19~age+as.factor(educ)+as.factor(fin7)+as.factor(emp_in)+as.factor(borrowed), data=Base1)
+stargazer(p_lin, header = FALSE, title = "Modèle à probabilité linéaire", font.size = "tiny")
+```
+
+## - Test de Breusch-Pagan
+
+```{r}
+pagan<- bptest(p_lin)
+pagan_df<-data.frame(
+  Stat=round(pagan$statistic,2),
+  p.value=round(pagan$p.value,5)
+)
+kable(pagan_df, caption = "Résultats du test de Pagan") |>  kable_styling(latex_options = c("striped", "hold_position"),position="center")
+```
+
+### Commentaire 
+
+La p-value du test de Breush-Pagan est inférieure à 5% nous pouvons donc rejeter l’hypothèse nulle selon laquelle la variance des résidus est constante et en déduire que l’hétéroscédasticité est effectivement présente. On va donc la corriger.
+
+## - Modèle avec correction d'hétéroscédasticité
+
+```{r, results='asis'}
+Base1$variances<-residuals(p_lin)^2
+modèle_robuste<-lm(fin19~age+as.factor(educ)+as.factor(fin7)+as.factor(emp_in)+as.factor(borrowed), data=Base1,weights = 1/Base1$variances)
+
+stargazer( p_lin,modèle_robuste, header = FALSE, title = "Modèles à probabilité linéaire", column.labels = c("Modèle","Modèle corrigé"),font.size = "tiny")
+```
+
+  Après correction de l'hétéroscédasticité, les coefficients associés à nos variables ainsi que la valeur des écarts-types liées à ces derniers ont variés. La part expliquée de la variabilité de l'accès au crédit ( $fin19$ ) par notre modèle a augmenté, on est passé de $15,3$% à $75,6$% . Etre plus âgé a un effet positif sur les chances d'obtenir un crédit, être un salarié, avoir un crédit ont aussi un effet positif. Avoir fait des études supérieurs augmente la probabilité d'avoir crédit par rapport au fait d'avoir complété les études primaires. Tandis que par rapport à la même situation, le gain d'avoir fait des études secondaires semble presque nul. Avoir emprunté de l'argent l'année d'avant l'étude ne semble pas avoir un effet statistiquement significatif sur l'accès au crédit (voir table ci-dessous).
+  
+\newpage
+
+# 3- Modèle logit
+
+```{r, results='asis'}
+
+Logit<-glm(fin19~age+as.factor(educ)+as.factor(fin7)+as.factor(emp_in)+as.factor(borrowed), data=Base1, family = binomial(link = logit))
+stargazer(Logit,header = FALSE, title = "Modèle Logit", font.size = "tiny")
+
+
+```
+
+## Commentaire
+  Toutes nos variables sont significatifs à l'exception de la variable $borrowed$.
+  
+  - par rapport au fait d'avoir un niveau d'étude primaire, avoir complété des études secondaire et supérieures augmente les chances d'avoir accès au crédit.
+  
+  - Etre plus agé augmente la probabilité d'avoir un crédit.
+  
+  - Posséder une carte de crédit, être salarié augmente les chances d'avoir accès au crédit.
+  
+## Rapports de chance
+
+```{r}
+Z<-exp(coef(Logit))
+OR_df<-data.frame(
+  Variables = c("age", "educ_2","educ_3","fin7_1","emp_in_1","borrowed_1"),
+  Odd_ratio = c(Z[2],Z[3],Z[4],Z[5],Z[6],Z[7])
+)
+row.names(OR_df)<-OR_df$Variables
+
+```
+
+```{r}
+kable(select(OR_df, -c(1)), caption ="Rapports de chance") |>  kable_styling(latex_options = c("striped", "hold_position"),position="center")
+```
+
+ - La probabilité d'obtenir un prêt augmente de $2,13$% avec l'âge.
+ - Les personnes qui ont fait des études secondaires et supérieures ont respectivement $3$ et $6$ fois plus de chance d'accéder au crédit que ceux qui n'ont fait que des études primaires.
+ - Avoir une carte de crédit, être salarié augmentent les chances d'avoir un crédit respectivement de $44,01$% et $5,31$.
+ - Avoir contracté un prêt l'an dernier augmente de $1,16$ fois les chances d'accès au crédit à nouveau.
+ 
+## - Courbe ROC 
+
+```{r}
+Base1$prediction<-predict(Logit, type = "response")
+roc_obj<-roc(Base1$fin19, Base1$prediction)
+
+aire_roc<- auc(roc_obj)
+
+plot.roc(roc_obj, col = "blue", xlab = "spécificité", ylab="sensibilité")
+```
+
+L'aire sous la courbe ROC est de `r aire_roc`. La capacité de discrimination du modèle est acceptable.
+
+\newpage
+
+# 4- Modèle Probit
+
+```{r, results='asis'}
+Probit<-glm(fin19~age+as.factor(educ)+as.factor(fin7)+as.factor(emp_in)+as.factor(borrowed), data=Base1, family = binomial(link = probit))
+
+stargazer(p_lin,modèle_robuste,Logit,Probit,column.labels=c("Linéaire","Lin corr","Logit", "probit"), font.size = "tiny", header = FALSE)
+```
+
+## Commentaire
+
+ - les signes et la significativité de nos paramètres sont les mêmes pour toutes les régressions.
+ - Comme dit plus haut, le modèle linéaire avec correction d'hétéroscédasticité ($Lin corr$) explique plus la variabilité de $fin19$ que le modèle a probabilité linéaire simple. Mais ces deux modèles sont inefficaces car elles prédisent des probabilités supérieurs à 1 ou inférieurs à 0 suivant les caractéristiques de certains individus.
+ -  Les modèles $Logit$ et $Probit$ sont assez proches, avec approximativement les mêmes AIC et Log likehood. La différence est au niveau de la valeur estimée des paramètres due au méthodes de calculs qui sont différentes.
+ 
+ 
+# Conclusion
+
+ De notre étude, il ressort que pour évaluer les chances d'accès au crédit il faut estimer un $Modèle$ $à$ $probabilité$ $non$ $linéaire$ en tenant en compte notamment de l'âge, le niveau d'éducation, la situation professionnelle, et le fait que la personne détienne ou pas une carte de crédit. Il pourrait être intéressant de regarder en aval la situation bancaire (crédits contractés les années précédentes).
