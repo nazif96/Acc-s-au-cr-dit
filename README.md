@@ -1,4 +1,4 @@
-# Projet éconmétrie appliquée - Déterminants de l'accès au crédit 
+# Projet économétrie appliquée - Déterminants de l'accès au crédit 
 
 Ce projet vise à mettre en évidence les déterminants qui favorise l'accès au crédit au pays bas. 
 
